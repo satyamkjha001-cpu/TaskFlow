@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TaskFlow — Premium Kanban Dashboard</title>
+
+  <!-- Google Fonts: Sora (headings) + Inter (body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Icons: Phosphor Icons CDN -->
+  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+
+  <link rel="stylesheet" href="../CSS/style.css" />
+  <script>
+    // Set theme immediately on load to prevent loading screen color flash
+    (function() {
+      let saved = localStorage.getItem("taskflow_theme_pref");
+      let darkPref = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      if (saved === "dark" || (!saved && darkPref)) {
+        document.documentElement.setAttribute("data-theme", "dark");
+      }
+    })();
+  </script>
+</head>
+<body>
+
+  <!-- Cybernetic Glowing Ambient Background Blobs -->
+  <div class="bg-blobs">
+    <div class="blob blob-blue"></div>
+    <div class="blob blob-cyan"></div>
+  </div>
+
+  <!-- ============================================================
+       LOADING SCREEN
+  ============================================================= -->
+  <div id="loadingScreen" class="loading-screen">
+    <div class="loader-ring"></div>
+    <p class="loader-text">Loading TaskFlow...</p>
+  </div>
+
+  <!-- ============================================================
+       TOAST CONTAINER
+  ============================================================= -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <!-- ============================================================
+       APP LAYOUT WRAPPER (Sidebar + Main Board Grid)
+  ============================================================= -->
+  <div class="app-layout">
+
+    <!-- ===================== SIDEBAR CONTROLS PANE ===================== -->
+    <aside class="sidebar glass">
+      <div class="sidebar-top">
+        <div class="logo">
+          <span class="logo-icon"><i class="ph-fill ph-kanban"></i></span>
+          <span class="logo-text">Task<span class="accent">Flow</span></span>
+        </div>
+      </div>
+
+      <div class="sidebar-body">
+        <!-- Section 1: Search -->
+        <div class="sidebar-group">
+          <p class="group-label">Quick Search</p>
+          <div class="search-box">
+            <i class="ph ph-magnifying-glass"></i>
+            <input type="text" id="searchInput" placeholder="Search tasks..." />
+            <button id="clearSearchBtn" class="clear-search-btn" title="Clear search" aria-label="Clear search">
+              <i class="ph ph-x"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Section 2: Filters & Sorting -->
+        <div class="sidebar-group">
+          <p class="group-label">Board Controls</p>
+          <div class="controls-row">
+            <!-- Filter Dropdown -->
+            <div class="dropdown" id="filterDropdown">
+              <button class="icon-btn" id="filterBtn" title="Filter tasks">
+                <i class="ph ph-funnel"></i>
+                <span class="btn-label">Filter</span>
+              </button>
+              <div class="dropdown-menu" id="filterMenu">
+                <p class="dropdown-title">Priority</p>
+                <label class="dropdown-item"><input type="checkbox" value="high" class="filter-priority" /> <span class="dot high"></span> High</label>
+                <label class="dropdown-item"><input type="checkbox" value="medium" class="filter-priority" /> <span class="dot medium"></span> Medium</label>
+                <label class="dropdown-item"><input type="checkbox" value="low" class="filter-priority" /> <span class="dot low"></span> Low</label>
+                <hr class="dropdown-divider" />
+                <button class="dropdown-reset" id="resetFilterBtn">Reset Filters</button>
+              </div>
+            </div>
+
+            <!-- Sort Dropdown -->
+            <div class="dropdown" id="sortDropdown">
+              <button class="icon-btn" id="sortBtn" title="Sort tasks">
+                <i class="ph ph-sort-ascending"></i>
+                <span class="btn-label">Sort</span>
+              </button>
+              <div class="dropdown-menu" id="sortMenu">
+                <p class="dropdown-title">Sort By</p>
+                <button class="dropdown-item sort-option" data-sort="default">Default</button>
+                <button class="dropdown-item sort-option" data-sort="priority">Priority</button>
+                <button class="dropdown-item sort-option" data-sort="dueDate">Due Date</button>
+                <button class="dropdown-item sort-option" data-sort="title">Title</button>
+                <button class="dropdown-item sort-option" data-sort="createdAt">Newest First</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 3: Analytics Stats -->
+        <div class="sidebar-group sidebar-stats-group">
+          <p class="group-label">Metrics</p>
+          <div class="stats-strip">
+            <div class="stat-card glass">
+              <div class="stat-icon total"><i class="ph-fill ph-stack"></i></div>
+              <div class="stat-info">
+                <span class="stat-value" id="statTotal">0</span>
+                <span class="stat-label">Total</span>
+              </div>
+            </div>
+
+            <div class="stat-card glass">
+              <div class="stat-icon progress"><i class="ph-fill ph-spinner-gap"></i></div>
+              <div class="stat-info">
+                <span class="stat-value" id="statInProgress">0</span>
+                <span class="stat-label">Active</span>
+              </div>
+            </div>
+
+            <div class="stat-card glass">
+              <div class="stat-icon done"><i class="ph-fill ph-check-circle"></i></div>
+              <div class="stat-info">
+                <span class="stat-value" id="statDone">0</span>
+                <span class="stat-label">Done</span>
+              </div>
+            </div>
+
+            <div class="stat-card glass progress-card">
+              <div class="progress-ring-wrap">
+                <svg class="progress-ring" viewBox="0 0 80 80">
+                  <circle class="progress-ring-bg" cx="40" cy="40" r="34"></circle>
+                  <circle class="progress-ring-fill" id="progressRingFill" cx="40" cy="40" r="34"></circle>
+                </svg>
+                <span class="progress-ring-text" id="statPercent">0%</span>
+              </div>
+              <span class="stat-label">Progress</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 4: Actions Toolkit -->
+        <div class="sidebar-group">
+          <p class="group-label">Options</p>
+          <div class="actions-row">
+            <button class="icon-btn" id="undoBtn" title="Undo Action (Ctrl+Z)">
+              <i class="ph ph-arrow-counter-clockwise"></i>
+            </button>
+            <button class="icon-btn theme-toggle" id="themeToggle" title="Toggle Theme">
+              <i class="ph ph-moon"></i>
+            </button>
+            <div class="dropdown" id="moreDropdown">
+              <button class="icon-btn" id="moreBtn" title="Actions menu">
+                <i class="ph ph-dots-three-vertical"></i>
+              </button>
+              <div class="dropdown-menu dropdown-menu-right" id="moreMenu">
+                <button class="dropdown-item" id="exportBtn"><i class="ph ph-export"></i> Export JSON</button>
+                <button class="dropdown-item" id="importBtn"><i class="ph ph-upload-simple"></i> Import JSON</button>
+                <input type="file" id="importFileInput" accept=".json" hidden />
+                <button class="dropdown-item" id="shortcutsBtn"><i class="ph ph-keyboard"></i> Shortcuts</button>
+                <hr class="dropdown-divider" />
+                <button class="dropdown-item danger" id="clearAllBtn"><i class="ph ph-trash"></i> Clear Board</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <button class="btn-primary" id="openAddTaskBtn">
+          <i class="ph-bold ph-plus"></i> Add Task
+        </button>
+      </div>
+    </aside>
+
+    <!-- ===================== MAIN BOARD CONTAINER ===================== -->
+    <main class="board-container">
+      <header class="board-header">
+        <div class="header-left">
+          <h1>Project Workspace</h1>
+          <p class="header-subtitle">Manage, track, and complete your tasks smoothly.</p>
+        </div>
+      </header>
+
+      <div class="board" id="board">
+        <!-- Columns containing status lists -->
+        <div class="column" data-status="todo">
+          <div class="column-header">
+            <div class="column-title">
+              <span class="column-dot todo-dot"></span>
+              <h2>To Do</h2>
+              <span class="column-count" id="count-todo">0</span>
+            </div>
+            <button class="column-add-btn" data-status="todo" title="Quick Add">
+              <i class="ph-bold ph-plus"></i>
+            </button>
+          </div>
+          <div class="task-list" id="list-todo" data-status="todo"></div>
+        </div>
+
+        <div class="column" data-status="inprogress">
+          <div class="column-header">
+            <div class="column-title">
+              <span class="column-dot progress-dot"></span>
+              <h2>In Progress</h2>
+              <span class="column-count" id="count-inprogress">0</span>
+            </div>
+            <button class="column-add-btn" data-status="inprogress" title="Quick Add">
+              <i class="ph-bold ph-plus"></i>
+            </button>
+          </div>
+          <div class="task-list" id="list-inprogress" data-status="inprogress"></div>
+        </div>
+
+        <div class="column" data-status="review">
+          <div class="column-header">
+            <div class="column-title">
+              <span class="column-dot review-dot"></span>
+              <h2>Review</h2>
+              <span class="column-count" id="count-review">0</span>
+            </div>
+            <button class="column-add-btn" data-status="review" title="Quick Add">
+              <i class="ph-bold ph-plus"></i>
+            </button>
+          </div>
+          <div class="task-list" id="list-review" data-status="review"></div>
+        </div>
+
+        <div class="column" data-status="done">
+          <div class="column-header">
+            <div class="column-title">
+              <span class="column-dot done-dot"></span>
+              <h2>Done</h2>
+              <span class="column-count" id="count-done">0</span>
+            </div>
+            <button class="column-add-btn" data-status="done" title="Quick Add">
+              <i class="ph-bold ph-plus"></i>
+            </button>
+          </div>
+          <div class="task-list" id="list-done" data-status="done"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ============================================================
+       ADD / EDIT TASK MODAL
+  ============================================================= -->
+  <div class="modal-overlay" id="taskModalOverlay">
+    <div class="modal glass" id="taskModal">
+      <div class="modal-header">
+        <h3 id="modalTitle">Add New Task</h3>
+        <button class="modal-close" id="closeModalBtn"><i class="ph ph-x"></i></button>
+      </div>
+
+      <form id="taskForm" class="modal-body">
+        <input type="hidden" id="taskId" />
+
+        <div class="form-group">
+          <label for="taskTitle">Title <span class="required">*</span></label>
+          <input type="text" id="taskTitle" placeholder="e.g. Design landing page hero section" maxlength="120" required />
+        </div>
+
+        <div class="form-group">
+          <label for="taskDesc">Description</label>
+          <textarea id="taskDesc" rows="3" placeholder="Provide details about the task..." maxlength="500"></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="taskStatus">Status</label>
+            <select id="taskStatus">
+              <option value="todo">To Do</option>
+              <option value="inprogress">In Progress</option>
+              <option value="review">Review</option>
+              <option value="done">Done</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="taskPriority">Priority</label>
+            <select id="taskPriority">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="taskDueDate">Due Date</label>
+            <input type="date" id="taskDueDate" />
+          </div>
+
+          <div class="form-group">
+            <label for="taskLabels">Labels <span class="hint">(comma separated)</span></label>
+            <input type="text" id="taskLabels" placeholder="frontend, urgent, bug" maxlength="100" />
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" id="cancelModalBtn">Cancel</button>
+          <button type="submit" class="btn-primary" id="saveTaskBtn">
+            <i class="ph-bold ph-check"></i> Save Task
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       RIGHT-CLICK CONTEXT MENU
+  ============================================================= -->
+  <ul class="context-menu" id="contextMenu">
+    <li data-action="edit"><i class="ph ph-pencil-simple"></i> Edit Task</li>
+    <li data-action="duplicate"><i class="ph ph-copy"></i> Duplicate Task</li>
+    <li class="context-divider"></li>
+    <li data-action="todo"><i class="ph ph-circle-dashed"></i> Move to To Do</li>
+    <li data-action="inprogress"><i class="ph ph-spinner-gap"></i> Move to In Progress</li>
+    <li data-action="review"><i class="ph ph-eye"></i> Move to Review</li>
+    <li data-action="done"><i class="ph ph-check-circle"></i> Move to Done</li>
+    <li class="context-divider"></li>
+    <li data-action="delete" class="danger-item"><i class="ph ph-trash"></i> Delete Task</li>
+  </ul>
+
+  <!-- ============================================================
+       KEYBOARD SHORTCUTS MODAL
+  ============================================================= -->
+  <div class="modal-overlay" id="shortcutsModalOverlay">
+    <div class="modal glass shortcuts-modal">
+      <div class="modal-header">
+        <h3>Keyboard Shortcuts</h3>
+        <button class="modal-close" id="closeShortcutsBtn"><i class="ph ph-x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="shortcut-row"><kbd>Ctrl</kbd> + <kbd>N</kbd><span>Add new task</span></div>
+        <div class="shortcut-row"><kbd>Ctrl</kbd> + <kbd>Z</kbd><span>Undo last action</span></div>
+        <div class="shortcut-row"><kbd>Ctrl</kbd> + <kbd>F</kbd><span>Focus search bar</span></div>
+        <div class="shortcut-row"><kbd>Ctrl</kbd> + <kbd>D</kbd><span>Toggle theme mode</span></div>
+        <div class="shortcut-row"><kbd>Esc</kbd><span>Close active overlay</span></div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Load split modules scripts in order -->
+  <script src="../JS/state.js"></script>
+  <script src="../JS/ui.js"></script>
+  <script src="../JS/app.js"></script>
+</body>
+</html>
